@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>LABTRACK Uganda | Dashboard</title>
+
+    <link rel="stylesheet" href="css/style.css" />
+
+    <script
+      src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"
+      defer
+    ></script>
+    <script src="js/app.js" defer></script>
+  </head>
+
+  <body>
+    <div class="app-layout">
+      <aside class="sidebar">
+        <h1>LABTRACK</h1>
+        <p>Uganda</p>
+
+        <nav aria-label="Main navigation">
+          <a href="#overview">Overview</a>
+          <a href="#workload">Workload</a>
+          <a href="#turnaround">Turnaround Time</a>
+          <a href="#quality">Quality</a>
+        </nav>
+
+        <div class="sidebar-footer">Laboratory Analytics</div>
+      </aside>
+
+      <main class="main-content" id="overview">
+        <header class="page-header">
+          <div>
+            <h2>Laboratory Operations Dashboard</h2>
+            <p>Monitor laboratory performance and quality</p>
+          </div>
+          <span class="demo-label">DEMO DATA</span>
+        </header>
+
+        <section class="filters" aria-label="Dashboard filters">
+          <div>
+            <label for="department">Department</label>
+            <select id="department">
+              <option value="All">All Departments</option>
+              <option value="Haematology">Haematology</option>
+              <option value="Biochemistry">Biochemistry</option>
+              <option value="Microbiology">Microbiology</option>
+              <option value="Serology">Serology</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="startDate">Start date</label>
+            <input type="date" id="startDate" />
+          </div>
+
+          <div>
+            <label for="endDate">End date</label>
+            <input type="date" id="endDate" />
+          </div>
+
+          <button id="resetFilters">Reset filters</button>
+        </section>
+
+        <p id="filterStatus" role="status"></p>
+
+        <section aria-label="Key performance indicators">
+          <h3>Performance Overview</h3>
+
+          <div class="kpi-grid">
+            <article class="kpi-card">
+              <h4>Total Orders</h4>
+              <p id="totalOrders">0</p>
+            </article>
+
+            <article class="kpi-card">
+              <h4>Average TAT</h4>
+              <p id="averageTat">0</p>
+            </article>
+
+            <article class="kpi-card">
+              <h4>Pending Orders</h4>
+              <p id="pendingOrders">0</p>
+            </article>
+
+            <article class="kpi-card">
+              <h4>TAT Compliance</h4>
+              <p id="tatCompliance">0%</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="workload">
+          <h3>Laboratory Workload</h3>
+
+          <div class="chart-grid">
+            <article class="chart-card">
+              <h4>Orders by Department</h4>
+              <div class="chart-container">
+                <canvas id="departmentChart"></canvas>
+              </div>
+            </article>
+
+            <article class="chart-card">
+              <h4>Daily Laboratory Orders</h4>
+              <div class="chart-container">
+                <canvas id="dailyChart"></canvas>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section id="turnaround">
+          <h3>Turnaround Time</h3>
+
+          <div class="chart-grid">
+            <article class="chart-card">
+              <h4>Average TAT by Department</h4>
+              <div class="chart-container">
+                <canvas id="tatChart"></canvas>
+              </div>
+            </article>
+
+            <article class="chart-card">
+              <h4>Orders by Status</h4>
+              <div class="chart-container">
+                <canvas id="statusChart"></canvas>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section id="quality">
+          <h3>Quality Monitoring</h3>
+
+          <div class="chart-grid">
+            <article class="chart-card">
+              <h4>Specimen Rejection Reasons</h4>
+              <div class="chart-container">
+                <canvas id="rejectionChart"></canvas>
+              </div>
+            </article>
+
+            <article class="chart-card">
+              <h4>Daily TAT Compliance (%)</h4>
+              <div class="chart-container">
+                <canvas id="complianceChart"></canvas>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <footer>LABTRACK Uganda | Academic Capstone Prototype</footer>
+      </main>
+    </div>
+  </body>
+</html>
