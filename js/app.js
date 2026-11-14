@@ -14,59 +14,64 @@ const colors = [
 ];
 
 const charts = {};
-const orders = [];
+let orders = [];
 
-// A reproducible random number generator.
-// This keeps our demo data consistent on each reload.
-let seed = 2026;
+async function loadLaboratoryData() {
+  try {
+    const response = await fetch("data/laboratory_orders.csv");
 
-function random() {
-  seed = (seed * 16807) % 2147483647;
-  return (seed - 1) / 2147483646;
-}
+    if (!response.ok) {
+      throw new Error("Unable to load laboratory CSV");
+    }
 
-// Create 600 synthetic laboratory orders.
-for (let i = 0; i < 600; i++) {
-  const day = 1 + Math.floor(random() * 30);
-  const department = departments[
-    Math.floor(random() * departments.length)
-  ];
+    const csvText = await response.text();
 
-  const statusRandom = random();
+    const parsed = Papa.parse(csvText, {
+      header: true,
+      skipEmptyLines: true
+    });
 
-  let status = "Completed";
+    if (parsed.errors.length > 0) {
+      throw new Error("There was a problem reading the CSV");
+    }
 
-  if (statusRandom < 0.12) {
-    status = "Pending";
-  } else if (statusRandom < 0.17) {
-    status = "Rejected";
+    orders = parsed.data.map(row => {
+      const received = new Date(row.received_at);
+
+      const dispatched = row.dispatched_at
+        ? new Date(row.dispatched_at)
+        : null;
+
+      const tat = row.status === "Completed" && dispatched
+        ? (dispatched - received) / 3600000
+        : null;
+
+      return {
+        id: row.order_id,
+        date: row.received_at.slice(0, 10),
+        department: row.department,
+        status: row.status,
+        tat: tat,
+        targetTat: Number(row.target_tat_hours),
+        rejectionReason: row.rejection_reason || null
+      };
+    });
+
+    console.log(
+      "Successfully loaded laboratory orders:",
+      orders.length
+    );
+
+    updateDashboard();
+
+  } catch (error) {
+    console.error("CSV loading error:", error);
+
+    document.getElementById("filterStatus").textContent =
+      "Error loading laboratory data.";
   }
-
-  const tat = status === "Completed"
-    ? +(0.5 + random() * 7).toFixed(2)
-    : null;
-
-  const rejectionReasons = [
-    "Haemolysed",
-    "Insufficient sample",
-    "Incorrect container",
-    "Labelling error"
-  ];
-
-  orders.push({
-    id: `LAB${String(i + 1).padStart(4, "0")}`,
-    date: `2026-11-${String(day).padStart(2, "0")}`,
-    department: department,
-    status: status,
-    tat: tat,
-    targetTat: 4,
-    rejectionReason: status === "Rejected"
-      ? rejectionReasons[
-          Math.floor(random() * rejectionReasons.length)
-        ]
-      : null
-  });
 }
+
 
 // Return a chart to its initial state before redrawing.
 function createChart(id, type, labels, values, label, color) {
@@ -275,6 +280,93 @@ function updateDashboard() {
   );
 }
 
+function exportSummaryCSV() {
+  const department = document.getElementById("department").value;
+  const startDate = document.getElementById("startDate").value;
+  const endDate = document.getElementById("endDate").value;
+
+  // Use the same filters as the dashboard
+  const filtered = orders.filter(order =>
+    (department === "All" || order.department === department) &&
+    (!startDate || order.date >= startDate) &&
+    (!endDate || order.date <= endDate)
+  );
+
+  const headers = [
+    "Department",
+    "Total Orders",
+    "Completed",
+    "Pending",
+    "Rejected",
+    "Average TAT Hours",
+    "TAT Compliance Percent"
+  ];
+
+  const rows = departments.map(dept => {
+    const subset = filtered.filter(
+      order => order.department === dept
+    );
+
+    const completed = subset.filter(
+      order => order.status === "Completed"
+    );
+
+    const pending = subset.filter(
+      order => order.status === "Pending"
+    );
+
+    const rejected = subset.filter(
+      order => order.status === "Rejected"
+    );
+
+    const averageTat = completed.length
+      ? completed.reduce((sum, order) => sum + order.tat, 0)
+        / completed.length
+      : null;
+
+    const compliant = completed.filter(
+      order => order.tat <= order.targetTat
+    ).length;
+
+    const compliance = completed.length
+      ? compliant / completed.length * 100
+      : null;
+
+    return [
+      dept,
+      subset.length,
+      completed.length,
+      pending.length,
+      rejected.length,
+      averageTat === null ? "" : averageTat.toFixed(2),
+      compliance === null ? "" : compliance.toFixed(1)
+    ];
+  });
+
+  // Convert summary rows into CSV
+  const csv = [headers, ...rows]
+    .map(row => row.join(","))
+    .join("\r\n");
+
+  // Create downloadable CSV file
+  const blob = new Blob([csv], {
+    type: "text/csv;charset=utf-8;"
+  });
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = "LABTRACK_department_summary.csv";
+
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+
 // Listen for changes to the filters.
 document.getElementById("department")
   .addEventListener("change", updateDashboard);
@@ -293,6 +385,8 @@ document.getElementById("resetFilters")
 
     updateDashboard();
   });
+document.getElementById("exportCSV")
+  .addEventListener("click", exportSummaryCSV);
 
-// Display the dashboard when the page loads.
-updateDashboard();
+// Load the CSV dataset when the page starts.
+loadLaboratoryData();
