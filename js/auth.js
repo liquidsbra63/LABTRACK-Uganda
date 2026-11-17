@@ -115,6 +115,12 @@ async function loadStaffRole(userId) {
 
   // UI convenience only; not a security boundary
   exportButton.hidden = data.role !== "manager";
+
+  // Load laboratory data only after staff role verification
+  if (!laboratoryDataLoaded && !laboratoryDataLoading) {
+    await loadLaboratoryData();
+  }
+
 }
 
 
@@ -129,12 +135,13 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
       loadStaffRole(session.user.id);
     }, 0);
 
-  } else {
-    showLogin();
+     } else {
+       showLogin();
+       clearLaboratoryData();
 
-    document.getElementById("userRole").textContent = "";
-    document.getElementById("exportCSV").hidden = true;
-  }
+       document.getElementById("userRole").textContent = "";
+       document.getElementById("exportCSV").hidden = true;
+     }
 });
 
 
