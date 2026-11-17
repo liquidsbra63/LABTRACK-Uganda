@@ -253,3 +253,113 @@ footer {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* LABTRACK LOGIN SCREEN */
+
+[hidden] {
+  display: none !important;
+}
+
+.login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
+  padding: 24px;
+}
+
+.login-card {
+  background: white;
+  padding: 36px;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+}
+
+.login-card h1 {
+  color: #2563eb;
+  margin-bottom: 8px;
+}
+
+.login-card h2 {
+  margin-top: 24px;
+  margin-bottom: 18px;
+}
+
+.login-card label {
+  display: block;
+  margin-top: 14px;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.login-card input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+}
+
+.login-card button {
+  width: 100%;
+  margin-top: 22px;
+  padding: 12px;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.login-card button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+#loginMessage {
+  margin-top: 14px;
+  color: #b91c1c;
+}
+
+/* Dashboard header actions */
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+/* Logout button */
+
+#logoutButton {
+  background-color: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  width: auto;
+}
+
+#logoutButton:hover {
+  background-color: #b91c1c;
+}
+
+#logoutButton:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+/* Keep hidden screens invisible */
+
+[hidden] {
+  display: none !important;
+}
