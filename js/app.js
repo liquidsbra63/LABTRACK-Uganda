@@ -25,10 +25,174 @@ const colors = [
 const charts = {};
 
 let orders = [];
+let tatBenchmarks = [];
+let ugandaHealthReference = [];
 let laboratoryDataLoaded = false;
 let laboratoryDataLoading = false;
 let dataLoadVersion = 0;
 
+// ==========================================
+// LOAD LABORATORY TAT BENCHMARKS FROM CSV
+// ==========================================
+
+async function loadTatBenchmarks() {
+  const response = await fetch(
+    "data/laboratory_tat_benchmarks.csv",
+    { cache: "no-store" }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      "Unable to load laboratory TAT benchmarks."
+    );
+  }
+
+  const csvText = await response.text();
+
+  const lines = csvText.trim().split(/\r?\n/);
+
+  const headers = lines[0]
+    .split(",")
+    .map(value => value.trim());
+
+  const expectedHeaders = [
+    "department",
+    "benchmark_tat_hours",
+    "benchmark_source"
+  ];
+
+  if (
+    expectedHeaders.some(
+      (header, index) => headers[index] !== header
+    )
+  ) {
+    throw new Error("Unexpected benchmark CSV columns.");
+  }
+
+  const benchmarks = lines.slice(1).map(line => {
+    const values = line.split(",").map(value => value.trim());
+
+    return {
+      department: values[0],
+      benchmarkTatHours: Number(values[1]),
+      benchmarkSource: values[2]
+    };
+  });
+
+  if (
+    benchmarks.length !== 4 ||
+    benchmarks.some(
+      item =>
+        !departments.includes(item.department) ||
+        !Number.isFinite(item.benchmarkTatHours) ||
+        item.benchmarkTatHours <= 0
+    ) ||
+    new Set(
+      benchmarks.map(item => item.department)
+    ).size !== 4
+  ) {
+    throw new Error("Invalid laboratory TAT benchmark data.");
+  }
+
+  return benchmarks;
+}
+async function loadUgandaHealthReference() {
+  const response = await fetch("data/uganda_health_reference.csv", {
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    throw new Error("Unable to load Uganda TAT reference CSV.");
+  }
+
+  const csvText = await response.text();
+  const lines = csvText.trim().split(/\r?\n/);
+
+  if (lines.length !== 3) {
+    throw new Error("Expected two national TAT reference records.");
+  }
+
+  const expectedHeaders = [
+    "laboratory",
+    "reporting_period",
+    "indicator",
+    "value_percent",
+    "source"
+  ];
+
+  const headers = lines[0].split(",").map(value => value.trim());
+
+  if (
+    headers.length !== expectedHeaders.length ||
+    expectedHeaders.some((header, index) => headers[index] !== header)
+  ) {
+    throw new Error("Unexpected national TAT reference CSV columns.");
+  }
+
+  const records = lines.slice(1).map(line => {
+    const values = line.split(",").map(value => value.trim());
+
+    if (values.length !== expectedHeaders.length) {
+      throw new Error("Invalid national TAT reference CSV row.");
+    }
+
+    return {
+      laboratory: values[0],
+      reportingPeriod: values[1],
+      indicator: values[2],
+      valuePercent: Number(values[3]),
+      source: values[4]
+    };
+  });
+
+  for (const record of records) {
+    if (
+      record.laboratory !== "National Microbiology Reference Laboratory" ||
+      record.indicator !== "Routine results within target TAT" ||
+      !Number.isFinite(record.valuePercent) ||
+      record.valuePercent < 0 ||
+      record.valuePercent > 100
+    ) {
+      throw new Error("Invalid national TAT reference value.");
+    }
+  }
+
+  return records;
+}
+
+function updateNationalTatPanel() {
+  const previousElement = document.getElementById("nationalTatPrevious");
+  const currentElement = document.getElementById("nationalTatCurrent");
+  const changeElement = document.getElementById("nationalTatChange");
+
+  if (!previousElement || !currentElement || !changeElement) {
+    return;
+  }
+
+  const previous = ugandaHealthReference.find(
+    record => record.reportingPeriod === "FY2024/25"
+  );
+
+  const current = ugandaHealthReference.find(
+    record => record.reportingPeriod === "FY2025/26"
+  );
+
+  if (!previous || !current) {
+    previousElement.textContent = "--%";
+    currentElement.textContent = "--%";
+    changeElement.textContent = "National TAT compliance change: --";
+    return;
+  }
+
+  previousElement.textContent = `${previous.valuePercent}%`;
+  currentElement.textContent = `${current.valuePercent}%`;
+
+  const difference = current.valuePercent - previous.valuePercent;
+  const sign = difference > 0 ? "+" : "";
+
+  changeElement.textContent =
+    `National TAT compliance change: ${sign}${difference} percentage points`;
+}
 
 // ==========================================
 // 1. LOAD AUTHORIZED DATA FROM SUPABASE
@@ -45,6 +209,7 @@ async function loadLaboratoryData() {
   laboratoryDataLoading = true;
   laboratoryDataLoaded = false;
   orders = [];
+  tatBenchmarks = [];
 
   const statusElement =
     document.getElementById("filterStatus");
@@ -94,9 +259,9 @@ async function loadLaboratoryData() {
       const { data, error } = await supabaseClient
         .from("laboratory_orders")
         .select(
-          "order_id, department, received_at, " +
-          "dispatched_at, status, target_tat_hours, " +
-          "rejection_reason"
+         "order_id, department, test_category, received_at, " +
+         "dispatched_at, status, target_tat_hours, " +
+         "rejection_reason"
         )
         .order("order_id", { ascending: true })
         .range(offset, offset + batchSize - 1);
@@ -129,6 +294,35 @@ async function loadLaboratoryData() {
       return;
     }
 
+    // Load the second data source: reference benchmarks
+const loadedBenchmarks = await loadTatBenchmarks();
+const loadedHealthReference = await loadUgandaHealthReference();
+
+// Prevent an old login session from updating benchmark data
+const { data: benchmarkSession } =
+  await supabaseClient.auth.getSession();
+
+if (
+  version !== dataLoadVersion ||
+  benchmarkSession.session?.user.id !== userId
+) {
+  return;
+}
+
+tatBenchmarks = loadedBenchmarks;
+ugandaHealthReference = loadedHealthReference;
+
+
+console.log(
+  "LABTRACK: Loaded national TAT reference:",
+  ugandaHealthReference
+);
+updateNationalTatPanel();
+
+console.log(
+  "LABTRACK: Loaded TAT benchmarks from CSV:",
+  tatBenchmarks.length
+);
     // Convert database records into dashboard format
     orders = allRecords.map(row => {
 
@@ -144,14 +338,15 @@ async function loadLaboratoryData() {
           : null;
 
       return {
-        id: row.order_id,
-        date: row.received_at.slice(0, 10),
-        department: row.department,
-        status: row.status,
-        tat: tat,
-        targetTat: Number(row.target_tat_hours),
-        rejectionReason: row.rejection_reason || null
-      };
+  id: row.order_id,
+  date: row.received_at.slice(0, 10),
+  department: row.department,
+  testCategory: row.test_category,
+  status: row.status,
+  tat: tat,
+  targetTat: Number(row.target_tat_hours),
+  rejectionReason: row.rejection_reason || null
+};
     });
 
     laboratoryDataLoaded = true;
@@ -197,6 +392,10 @@ function clearLaboratoryData() {
   dataLoadVersion++;
 
   orders = [];
+  tatBenchmarks = [];
+  ugandaHealthReference = [];
+  updateNationalTatPanel();
+  
   laboratoryDataLoaded = false;
   laboratoryDataLoading = false;
 
@@ -247,11 +446,14 @@ function createChart(id, type, labels, values, label, color) {
       }]
     },
 
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
+    
+options: {
+  responsive: true,
+  maintainAspectRatio: false,
+  animation: false,
 
-      plugins: {
+  plugins: {
+
         legend: {
           display: type === "doughnut"
         },
@@ -533,10 +735,117 @@ function updateDashboard() {
     "Compliance (%)",
     colors[0]
   );
+// Update benchmark comparison using current filters
+updateBenchmarkChart(filtered);
 
 }
 
+// ==========================================
+// LABORATORY TAT BENCHMARK COMPARISON
+// ==========================================
 
+function updateBenchmarkChart(filteredOrders) {
+
+  if (!tatBenchmarks.length) {
+    return;
+  }
+
+  const actualTat = departments.map(dept => {
+
+    const completed = filteredOrders.filter(
+      order =>
+        order.department === dept &&
+        order.status === "Completed" &&
+        order.tat !== null
+    );
+
+    if (!completed.length) {
+      return null;
+    }
+
+    const totalTat = completed.reduce(
+      (sum, order) => sum + order.tat,
+      0
+    );
+
+    return +(totalTat / completed.length).toFixed(2);
+  });
+
+  const benchmarkTat = departments.map(dept => {
+
+    const benchmark = tatBenchmarks.find(
+      item => item.department === dept
+    );
+
+    return benchmark
+      ? benchmark.benchmarkTatHours
+      : null;
+  });
+
+  const canvas = document.getElementById("benchmarkChart");
+
+  if (!canvas) {
+    console.error("Benchmark chart canvas not found.");
+    return;
+  }
+
+  if (charts.benchmarkChart) {
+    charts.benchmarkChart.destroy();
+  }
+
+  charts.benchmarkChart = new Chart(canvas, {
+    type: "bar",
+
+    data: {
+      labels: departments,
+
+      datasets: [
+        {
+          label: "Actual Average TAT (hours)",
+          data: actualTat,
+          backgroundColor: "#2563eb"
+        },
+        {
+          label: "Illustrative Benchmark (hours)",
+          data: benchmarkTat,
+          backgroundColor: "#d97706"
+        }
+      ]
+    },
+
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+
+      plugins: {
+        legend: {
+          display: true
+        },
+        tooltip: {
+          enabled: true
+        }
+      },
+
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: "Turnaround Time (Hours)"
+          }
+        }
+      }
+    }
+  });
+
+  const status = document.getElementById("benchmarkStatus");
+
+  if (status) {
+    status.textContent =
+      "Comparing completed laboratory orders " +
+      "with illustrative departmental TAT benchmarks.";
+  }
+}
 // ==========================================
 // 6. EXPORT SUMMARY CSV
 // ==========================================
